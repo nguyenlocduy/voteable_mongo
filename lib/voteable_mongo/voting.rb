@@ -29,12 +29,11 @@ module Mongo
 
             # http://www.mongodb.org/display/DOCS/findAndModify+Command
             begin
-              doc = voteable_collection.find_and_modify(
-                :query => query,
-                :update => update,
-                :new => true
+              doc = where(query).find_and_modify(
+                update,
+                { :new => true }
               )
-            rescue Mongo::OperationFailure
+            rescue Moped::OperationFailure
               doc = nil
             end  
 
@@ -42,7 +41,7 @@ module Mongo
               update_parent_votes(doc, options) if options[:voteable][:update_parents]
               # Update new votes data
               options[:votee].write_attribute('votes', doc['votes']) if options[:votee]
-              options[:votee] || new(doc)
+              options[:votee] || new(doc.attributes)
             else
               false
             end
