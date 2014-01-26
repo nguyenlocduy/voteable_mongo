@@ -12,7 +12,9 @@ module Mongo
       'up_count' => 0,
       'down_count' => 0,
       'count' => 0,
-      'point' => 0
+      'point' => 0,
+      'friend_vote_count' => 0,
+      'coach_vote_count' => 0
     }
 
     included do
@@ -23,7 +25,7 @@ module Mongo
       elsif defined?(MongoMapper)
         include Mongo::Voteable::Integrations::MongoMapper
       end
-      
+
       scope :voted_by, lambda { |voter|
         voter_id = Helpers.get_mongo_id(voter)
         where('$or' => [{ 'votes.up' => voter_id }, { 'votes.down' => voter_id }])
@@ -46,9 +48,9 @@ module Mongo
 
     module ClassMethods
       # Set vote point for each up (down) vote on an object of this class
-      # 
+      #
       # @param [Hash] options a hash containings:
-      # 
+      #
       # voteable self, :up => +1, :down => -3
       # voteable Post, :up => +2, :down => -1, :update_counters => false # skip counter update
       def voteable(klass = self, options = nil)
@@ -62,37 +64,37 @@ module Mongo
           VOTEABLE[name][name][:update_parents] ||= true
         end
       end
-      
+
       # Check if voter_id do a vote on votee_id
       #
       # @param [Hash] options a hash containings:
       #   - :votee_id: the votee document id
       #   - :voter_id: the voter document id
-      # 
+      #
       # @return [true, false]
       def voted?(options)
         validate_and_normalize_vote_options(options)
         up_voted?(options) || down_voted?(options)
       end
-      
+
       # Check if voter_id do an up vote on votee_id
       #
       # @param [Hash] options a hash containings:
       #   - :votee_id: the votee document id
       #   - :voter_id: the voter document id
-      # 
+      #
       # @return [true, false]
       def up_voted?(options)
         validate_and_normalize_vote_options(options)
         up_voted_by(options[:voter_id]).where(:_id => options[:votee_id]).count == 1
       end
-      
+
       # Check if voter_id do a down vote on votee_id
       #
       # @param [Hash] options a hash containings:
       #   - :votee_id: the votee document id
       #   - :voter_id: the voter document id
-      # 
+      #
       # @return [true, false]
       def down_voted?(options)
         validate_and_normalize_vote_options(options)
@@ -115,7 +117,7 @@ module Mongo
         voteable_index [['votes.point', -1]]
       end
     end
-    
+
     module InstanceMethods
       # Make a vote on this votee
       #
@@ -137,7 +139,7 @@ module Mongo
 
         self.class.vote(options)
       end
-    
+
       # Get a voted value on this votee
       #
       # @param voter is object or the id of the voter who made the vote
@@ -146,7 +148,7 @@ module Mongo
         return :up if up_voter_ids.include?(voter_id)
         return :down if down_voter_ids.include?(voter_id)
       end
-    
+
       def voted_by?(voter)
         !!vote_value(voter)
       end
@@ -170,17 +172,25 @@ module Mongo
       def up_votes_count
         votes.try(:[], 'up_count') || 0
       end
-  
+
+      def friend_vote_counts
+        votes.try(:[], 'friend_vote_count') || 0
+      end
+
+      def coach_vote_counts
+        votes.try(:[], 'coach_vote_count') || 0
+      end
+
       # Get the number of down votes
       def down_votes_count
         votes.try(:[], 'down_count') || 0
       end
-  
+
       # Get the number of votes
       def votes_count
         votes.try(:[], 'count') || 0
       end
-  
+
       # Get the votes point
       def votes_point
         votes.try(:[], 'point') || 0

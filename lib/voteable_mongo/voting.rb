@@ -2,7 +2,7 @@ module Mongo
   module Voteable
     module Voting
       extend ActiveSupport::Concern
-      
+
       module ClassMethods
         # Make a vote on an object of this class
         #
@@ -12,12 +12,12 @@ module Mongo
         #   - :value: :up or :down
         #   - :revote: if true change vote vote from :up to :down and vise versa
         #   - :unvote: if true undo the voting
-        # 
+        #
         # @return [votee, false]
         def vote(options)
           validate_and_normalize_vote_options(options)
           options[:voteable] = VOTEABLE[name][name]
-          
+
           if options[:voteable]
              query, update = if options[:revote]
               revote_query_and_update(options)
@@ -35,7 +35,7 @@ module Mongo
               )
             rescue Moped::OperationFailure
               doc = nil
-            end  
+            end
 
             if doc
               update_parent_votes(doc, options) if options[:voteable][:update_parents]
@@ -48,7 +48,7 @@ module Mongo
           end
         end
 
-        
+
         private
           def validate_and_normalize_vote_options(options)
             options.symbolize_keys!
@@ -56,9 +56,9 @@ module Mongo
             options[:voter_id] = Helpers.try_to_convert_string_to_object_id(options[:voter_id])
             options[:value] &&= options[:value].to_sym
           end
-        
+
           def new_vote_query_and_update(options)
-            if options[:value] == :up
+            if options[:value] == :up || options[:value] == :coach || options[:value] == :friend
               positive_voter_ids = 'votes.up'
               positive_votes_count = 'votes.up_count'
             else
@@ -77,12 +77,14 @@ module Mongo
               '$inc' => {
                 'votes.count' => +1,
                 positive_votes_count => +1,
-                'votes.point' => options[:voteable][options[:value]]
+                'votes.point' => options[:voteable][options[:value]],
+                'votes.friend_vote_count' => options[:value] == :friend ? +1 : +0,
+                'votes.friend_vote_count' => options[:value] == :coach ? +1 : +0
               }
             }
           end
 
-          
+
           def revote_query_and_update(options)
             if options[:value] == :up
               positive_voter_ids = 'votes.up'
@@ -116,7 +118,7 @@ module Mongo
               }
             }
           end
-          
+
 
           def unvote_query_and_update(options)
             if options[:value] == :up
@@ -132,7 +134,7 @@ module Mongo
             return {
               :_id => options[:votee_id],
               # Validate if voter_id did a vote with value for votee_id
-              # Can skip $ne validation since creating a new vote 
+              # Can skip $ne validation since creating a new vote
               # already warranty that a voter can vote one only
               # negative_voter_ids => { '$ne' => options[:voter_id] },
               positive_voter_ids => options[:voter_id]
@@ -146,14 +148,14 @@ module Mongo
               }
             }
           end
-          
+
 
           def update_parent_votes(doc, options)
             VOTEABLE[name].each do |class_name, voteable|
               if metadata = voteable_relation(class_name)
                 if (parent_id = doc[voteable_foreign_key(metadata)]).present?
                   parent_ids = parent_id.is_a?(Array) ? parent_id : [ parent_id ]
-                  class_name.constantize.collection.update( 
+                  class_name.constantize.collection.update(
                     { '_id' => { '$in' => parent_ids } },
                     { '$inc' => parent_inc_options(voteable, options) },
                     { :multi => true }
@@ -163,7 +165,7 @@ module Mongo
             end
           end
 
-          
+
           def parent_inc_options(voteable, options)
             inc_options = {}
 
@@ -208,7 +210,7 @@ module Mongo
             inc_options
           end
       end
-            
+
     end
   end
 end
